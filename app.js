@@ -55,7 +55,6 @@ function getNewToken(oauth2Client, callback) {
 
 function refreshTokenIfNeed(oauth2Client, callback){
   var timeNow = (new Date).getTime()
-  console.log(oauth2Client.credentials.expiry_date)
   if(oauth2Client.credentials.expiry_date > timeNow)
     callback(oauth2Client)
   else
@@ -132,7 +131,7 @@ function startLocalServer(oauth2Client){
   });
 
   app.listen(8998)
-  console.log("Server avviato.")
+  console.log("Server started.")
 }
 
 function performRequest_default(req, res, access_token, fileInfo){
