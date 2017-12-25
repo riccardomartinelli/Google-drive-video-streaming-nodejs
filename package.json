@@ -1,0 +1,25 @@
+{
+  "name": "google-drive-video-streaming-nodejs",
+  "version": "1.0.0",
+  "description": "Watch your video directly into a video player.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/riccardomartinelli/Google-drive-video-streaming-nodejs.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/riccardomartinelli/Google-drive-video-streaming-nodejs/issues"
+  },
+  "homepage": "https://github.com/riccardomartinelli/Google-drive-video-streaming-nodejs#readme",
+  "dependencies": {
+    "express": "^4.16.2",
+    "express-end": "0.0.8",
+    "google-auth-library": "^0.12.0",
+    "googleapis": "^23.0.0"
+  }
+}
