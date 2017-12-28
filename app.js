@@ -13,6 +13,7 @@ var TOKEN_DIR = __dirname + '/.credentials/';
 var TOKEN_PATH = TOKEN_DIR + 'googleDriveAPI.json';
 var TEMP_DIR = __dirname + '/.temp/'
 var CHUNK_SIZE = 20000000
+var PORT = 8998;
 
 // Load client secrets from a local file.
 fs.readFile('client_secret.json', function processClientSecrets(err, content) {
@@ -97,7 +98,7 @@ function startLocalServer(oauth2Client){
         oauth2Client.credentials = token;
         storeToken(token);
       });
-      res.send('Autenticato con successo!');
+      res.send('Successfully authenticated!');
    }
   })
 
@@ -120,8 +121,8 @@ function startLocalServer(oauth2Client){
       }
       
       function performRequest(fileInfo){
-        if(action == 'predownload'){
-          performRequest_preDownload(req, res, access_token, fileInfo)
+        if(action == 'download'){
+          performRequest_download(req, res, access_token, fileInfo)
         }else{
           performRequest_default(req, res, access_token, fileInfo)
         }
@@ -130,8 +131,8 @@ function startLocalServer(oauth2Client){
     
   });
 
-  app.listen(8998)
-  console.log("Server started.")
+  app.listen(PORT)
+  console.log("Server started at port: " + PORT)
 }
 
 function performRequest_default(req, res, access_token, fileInfo){
@@ -185,7 +186,7 @@ function performRequest_default(req, res, access_token, fileInfo){
   }
 }
 
-function performRequest_preDownload(req, res, access_token, fileInfo){
+function performRequest_download(req, res, access_token, fileInfo){
   var fileSize = fileInfo.size
   var fileId = fileInfo.id
   res.writeHead(200)  
@@ -237,13 +238,12 @@ function downloadFile(fileId, access_token, start, end, pipe, onEnd, onStart){
     console.log('req: ' + start + ' / ' + end + '   offline')
     var relativeStart = (start > startChunk*CHUNK_SIZE) ? start - (startChunk*CHUNK_SIZE) : 0
     var relativeEnd = (end > (startChunk+1)*CHUNK_SIZE ) ? CHUNK_SIZE : end - (startChunk*CHUNK_SIZE)
-    let readStream = fs.createReadStream(chunkName, {start: relativeStart, end: relativeEnd})
-    onStart(readStream)
+    let readStream = fs.createReadStream(chunkName, {start: relativeStart, end: relativeEnd})    
     readStream.pipe(pipe, {end:false})
     readStream.on('data', chunk => {
       //onData(chunk)
     })
-    readStream.on('end', () => {      
+    readStream.on('end', () => {   
       if (end >= (startChunk+1)*CHUNK_SIZE ){   //Da rivedere
         console.log('->')
         downloadFile(fileId, access_token, (startChunk+1)*CHUNK_SIZE, end, pipe, onEnd, onStart)
@@ -256,6 +256,7 @@ function downloadFile(fileId, access_token, start, end, pipe, onEnd, onStart){
     readStream.on('error', (err) => {
       console.log(err)
     })
+    onStart(readStream)
   }else{
     console.log('req: ' + start + ' / ' + end + '   online')
     httpDownloadFile(fileId, access_token, start, end, pipe, onEnd, onStart)
@@ -276,24 +277,30 @@ function httpDownloadFile(fileId, access_token, start, end, pipe, onEnd, onStart
   callback = function(response) {
     var arrBuffer = []
     var arrBufferSize = 0
-    response.pipe(pipe)
+    response.pipe(pipe, {end:false})
     response.on('data', function (chunk) {
-      //onData(chunk)
-      //Concat buffer
-      //pipe.write(chunk)
       var buffer = Buffer.from(chunk)
       arrBuffer.push(buffer)
       arrBufferSize += buffer.length
-      if(arrBufferSize >= CHUNK_SIZE*2){
-        arrBuffer = [Buffer.concat(arrBuffer, arrBufferSize)]
-        arrBuffer = flushBuffers(arrBuffer, fileId, start)
-        arrBufferSize = arrBuffer[0].length
-        var offset = (Math.ceil(start / CHUNK_SIZE) * CHUNK_SIZE) - start
-        start += CHUNK_SIZE + offset
+      var nextChunk = Math.floor((start + arrBufferSize) / CHUNK_SIZE)
+      var chunkName = TEMP_DIR + fileId + '@' + nextChunk
+      if(fs.existsSync(chunkName) && start + arrBufferSize < end){
+        req.abort()
+        downloadFile(fileId, access_token, start + arrBufferSize, end, pipe, onEnd, onStart)
+      }else{
+        if(arrBufferSize >= CHUNK_SIZE*2){
+          arrBuffer = [Buffer.concat(arrBuffer, arrBufferSize)]
+          arrBuffer = flushBuffers(arrBuffer, fileId, start)
+          arrBufferSize = arrBuffer[0].length
+          var offset = (Math.ceil(start / CHUNK_SIZE) * CHUNK_SIZE) - start
+          start += CHUNK_SIZE + offset
+        }
       }
     })
     response.on('end', function () {
-      onEnd()
+      if(!req.aborted){
+        onEnd()
+      }      
     })
   }
   
@@ -371,72 +378,3 @@ function getInfoFromId(fileId){
 function addInfo(fileId, fileInfo){
   filesInfo.push({id: fileId, info: fileInfo})
 }
-
-/*
-function downloadFile(fileId, access_token, startReq){
-  var fileChunkStatus = chunkStatus(fileId)
-  
-  for(var i=0; i < fileChunkStatus.length; i++){
-    if(fileChunkStatus[i].start){
-      
-    }
-  }
-  
-  downloadChunk(fileId, access_token, 0, 100000, downloadFile(fileId, access_token, 100001))
-}
-
-function downloadChunk(fileId, access_token, start){
-  var fileName = TEMP_DIR + fileId
-  
-      try {
-        fs.mkdirSync(TEMP_DIR);
-      } catch (err) {
-        if (err.code != 'EEXIST') {
-          throw err;
-        }
-      }
-  
-      var options = {
-        host: 'www.googleapis.com',
-        path: '/drive/v3/files/'+fileId+'?alt=media',
-        method: 'GET',
-        headers: {
-          'Authorization': 'Bearer ' + access_token,
-          'Range': 'bytes='+start+'-'
-        }
-      };
-  
-      callback = function(response) {
-        response.on('data', function (chunk) {
-          //fs.appendFileSync(fileName, chunk);
-          var fileDescriptor = fs.openSync(fileName, 'a+')
-          fs.writeSync(fileDescriptor, chunk, start, 5000000000);
-        });
-        response.on('end', function () {
-        });
-      }
-  
-      https.request(options, callback).end();
-}
-
-
-/*
-function chunkStatus(fileId){
-  var resultObj = []
-  fs.readdirSync(TEMP_DIR).forEach(file => {
-    var fileInfo = file.split('@')
-    if(fileInfo[0] == fileId){
-      var start = fileInfo[1]
-      var size = fs.statSync(TEMP_DIR+file).size
-      resultObj.push({
-        start: start,
-        end: start + size
-      })
-    }
-  })
-  resultObj.sort((a,b) => {
-    return a.start - b.start
-  })
-  return resultObj
-}
-*/
