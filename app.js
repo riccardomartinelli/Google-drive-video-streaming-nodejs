@@ -120,8 +120,8 @@ function startLocalServer(oauth2Client){
       }
       
       function performRequest(fileInfo){
-        if(action == 'predownload'){
-          performRequest_preDownload(req, res, access_token, fileInfo)
+        if(action == 'download'){
+          performRequest_download(req, res, access_token, fileInfo)
         }else{
           performRequest_default(req, res, access_token, fileInfo)
         }
@@ -185,7 +185,7 @@ function performRequest_default(req, res, access_token, fileInfo){
   }
 }
 
-function performRequest_preDownload(req, res, access_token, fileInfo){
+function performRequest_download(req, res, access_token, fileInfo){
   var fileSize = fileInfo.size
   var fileId = fileInfo.id
   res.writeHead(200)  
