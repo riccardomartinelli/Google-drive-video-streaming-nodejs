@@ -31,5 +31,8 @@ For example to start downloading the video from half you should use this link
 ```bash
 http://127.0.0.1:8998/<google-drive-video-id>/download?p=50
 ```
-
-To stop the downloading process just close the browser tab.
+You can even use the parameter c, that indicate from what chunk the download must be started.
+To stop the downloading process use this url:
+```bash
+http://127.0.0.1:8998/<google-drive-video-id>/download_stop
+```
