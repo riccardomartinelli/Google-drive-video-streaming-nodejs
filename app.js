@@ -5,6 +5,7 @@ var express = require('express')
 var https = require('https')
 var endMw = require('express-end')
 var stream = require('stream');
+const getDuration = require('get-video-duration');
 var app = express()
 
 // If modifying these scopes, delete your previously saved credentials
@@ -95,6 +96,10 @@ function startLocalServer(oauth2Client){
           console.log('Error while trying to retrieve access token', err);
           return;
         }
+        if(!token.refresh_token){
+          console.log('No refresh token found.');
+          return;
+        }
         oauth2Client.credentials = token;
         storeToken(token);
       });
@@ -102,7 +107,7 @@ function startLocalServer(oauth2Client){
    }
   })
 
-  app.get(/\/.{10,}/, function(req, res){    
+  app.get(/\/.{15,}/, function(req, res){    
     refreshTokenIfNeed(oauth2Client, oauth2Client => {
       var access_token = oauth2Client.credentials.access_token  
       var urlSplitted = req.url.match('^[^?]*')[0].split('/')
@@ -112,18 +117,27 @@ function startLocalServer(oauth2Client){
         action = urlSplitted[2]
       var fileInfo = getInfoFromId(fileId)
       if(fileInfo){
-        performRequest(fileInfo.info)
+        performRequest(fileInfo)
       }else{
         getFileInfo(fileId, access_token, info =>{
           addInfo(fileId, info)
-          performRequest(info)
+          var fileInfo = getInfoFromId(fileId)
+          performRequest(fileInfo)
         })
       }
       
       function performRequest(fileInfo){
+        var skipDefault = false
         if(action == 'download'){
-          performRequest_download(req, res, access_token, fileInfo)
-        }else{
+          performRequest_download_start(req, res, access_token, fileInfo)
+          skipDefault = true
+        }
+        if(action == 'download_stop'){
+          performRequest_download_stop(req, res, access_token, fileInfo)
+          skipDefault = true
+        }
+
+        if(!skipDefault){
           performRequest_default(req, res, access_token, fileInfo)
         }
       }
@@ -136,7 +150,8 @@ function startLocalServer(oauth2Client){
 }
 
 function performRequest_default(req, res, access_token, fileInfo){
-  var fileSize = fileInfo.size
+  var fileSize = fileInfo.info.size
+  var fileMime = fileInfo.info.mimeType
   var fileId = fileInfo.id
   const range = req.headers.range
   if (range) {
@@ -150,7 +165,8 @@ function performRequest_default(req, res, access_token, fileInfo){
       'Content-Range': `bytes ${start}-${end}/${fileSize}`,
       'Accept-Ranges': 'bytes',
       'Content-Length': chunksize,
-      'Content-Type': 'video/mp4',
+      //'Content-Type': 'video/mp4',
+      'Content-Type': fileMime
     }
     res.writeHead(206, head);
     downloadFile(fileId, access_token, start, end,
@@ -168,7 +184,7 @@ function performRequest_default(req, res, access_token, fileInfo){
   } else {
     const head = {
       'Content-Length': fileSize,
-      'Content-Type': 'video/mp4',
+      'Content-Type': fileMime,
     }
     res.writeHead(200, head)
     downloadFile(fileId, access_token, 0, fileSize-1,
@@ -186,49 +202,85 @@ function performRequest_default(req, res, access_token, fileInfo){
   }
 }
 
-function performRequest_download(req, res, access_token, fileInfo){
-  var fileSize = fileInfo.size
+function performRequest_download_start(req, res, access_token, fileInfo){
+  var fileSize = fileInfo.info.size
   var fileId = fileInfo.id
-  res.writeHead(200)  
-  res.write('Start downloading ...\n')
-  var lastTime = (new Date).getTime()
-  var downloadedSize = 0
-  var downloadSize = 0
-  var lastChunksSize = 0
-  var echoStream = new stream.Writable()
-  echoStream._write = function (chunk, encoding, done) {    
-    lastChunksSize += chunk.length
-    done();
-  }
-  var startChunk = 0
-  if(req.query.p && req.query.p >= 0 && req.query.p <= 100)
-    startChunk = Math.floor(((fileSize-1)/CHUNK_SIZE) * req.query.p / 100)
-  downloadSize = fileSize - startChunk*CHUNK_SIZE
-  var updateUser = setInterval(() => {
-    var nowTime = (new Date).getTime()   
-    var speedInMByte = ((lastChunksSize*8 / (nowTime - lastTime)) / 1000)
-    lastTime = nowTime
-    downloadedSize += lastChunksSize
-    lastChunksSize = 0
-    res.write('Downloading: ' + (downloadedSize/downloadSize * 100).toFixed(3) +'% | ' + speedInMByte.toFixed(3) + ' Mbps\n')
-  }, 2000)
-  downloadFile(fileId, access_token, startChunk*CHUNK_SIZE, fileSize-1,
-    echoStream,
-    () => {
-      clearInterval(updateUser);
-      res.write('File downloaded.\n')
-      res.end()
-    },
-    (richiesta) => {
-      res.once('close',  function() {
-        clearInterval(updateUser);
-        if(typeof richiesta.abort === "function")
-          richiesta.abort()
-        if(typeof richiesta.destroy === "function")
-          richiesta.destroy()
-      })
+  var status = getDownloadStatus(fileId)
+  if(!status){
+    status = addDownloadStatus(fileId)
+    var lastTime = (new Date).getTime()
+    var downloadedSize = 0
+    var downloadSize = 0 
+    var startChunk = 0
+    if(req.query.p && req.query.p >= 0 && req.query.p <= 100)
+      startChunk = Math.floor(((fileSize)/CHUNK_SIZE) * req.query.p / 100)
+    if(req.query.c && req.query.c >= 0 && req.query.c <= Math.floor((fileSize)/CHUNK_SIZE))
+      startChunk = req.query.c
+    downloadSize = fileSize - startChunk*CHUNK_SIZE
+  
+    var videoDuration = null
+    fileInfo.getVideoLength.then((data) => {
+      console.log(data)
+      videoDuration = data
+    })
+    .catch((error) => {
+      console.log(error)
+    })
+  
+    var echoStream = new stream.Writable()
+    var chunkSizeSinceLast = 0
+    echoStream._write = function (chunk, encoding, done) {    
+      chunkSizeSinceLast += chunk.length
+      var nowTime = (new Date).getTime()        
+      
+      //update status    
+      if(nowTime - lastTime > 2000){
+        var speedInMBit = ((chunkSizeSinceLast*8 / (nowTime - lastTime)) / 1000)
+        var speedInByte = (speedInMBit/8) * 1000000
+        downloadedSize += chunkSizeSinceLast
+        status.status = (downloadedSize/downloadSize * 100).toFixed(3)
+        status.speedMbit = speedInMBit.toFixed(3)
+        status.speedByte = speedInByte
+        if(videoDuration){
+          var timeLeftBeforeStreaming = Math.max(Math.round((downloadSize / speedInByte) - (videoDuration*downloadSize/fileSize)) , 0)
+          status.timeLeftBeforeStreaming = timeLeftBeforeStreaming
+        }
+        lastTime = nowTime
+        chunkSizeSinceLast = 0
+      }
+      
+      done();
     }
-  )
+  
+    downloadFile(fileId, access_token, startChunk*CHUNK_SIZE, fileSize-1,
+      echoStream,
+      () => {
+        removeDownloadStatus(fileId)
+      },
+      (richiesta) => {
+        status.onClose = () =>{
+          if(typeof richiesta.abort === "function")
+            richiesta.abort()
+          if(typeof richiesta.destroy === "function")
+            richiesta.destroy()
+          removeDownloadStatus(fileId)
+        }
+      }
+    )
+  }
+  res.writeHead(200)  
+  res.write(JSON.stringify(status))
+  res.end()
+}
+
+function performRequest_download_stop(req, res, access_token, fileInfo){
+  var fileId = fileInfo.id
+  var status = getDownloadStatus(fileId)
+  if(status){
+    status.onClose()
+  }
+  res.writeHead(200)  
+  res.end()
 }
 
 function downloadFile(fileId, access_token, start, end, pipe, onEnd, onStart){
@@ -298,6 +350,7 @@ function httpDownloadFile(fileId, access_token, start, end, pipe, onEnd, onStart
       }
     })
     response.on('end', function () {
+      //Aggiungere il controllo se c'è un errore
       if(!req.aborted){
         onEnd()
       }      
@@ -363,6 +416,8 @@ function getFileInfo(fileId, access_token, onData){
   https.request(options, callback).end();
 }
 
+
+//File info
 var filesInfo = []
 
 function getInfoFromId(fileId){
@@ -376,5 +431,50 @@ function getInfoFromId(fileId){
 }
 
 function addInfo(fileId, fileInfo){
-  filesInfo.push({id: fileId, info: fileInfo})
+  var info = {id: fileId, info: fileInfo}
+  info.getVideoLength = new Promise((resolve, reject) => {
+    if(!info.videoLength){
+      getDuration('http://127.0.0.1:' + PORT + '/' + fileId).then((duration) => {
+        info.videoLength = duration
+        resolve(duration)
+      })
+      .catch((error) => {
+        console.log(error);
+        reject(error)
+      })
+    }else{
+      resolve(info.videoLength)
+    }
+    
+  })
+
+  filesInfo.push(info)
+}
+
+//Downloads status
+var downloadStatus = []
+
+function getDownloadStatus(fileId){
+  var result = null
+  downloadStatus.forEach(data =>{
+    if(data.id == fileId){
+      result = data 
+    }
+  })
+  return result
+}
+
+function addDownloadStatus(fileId){
+  var status = {id: fileId}
+  status.onClose = () => {}
+  downloadStatus.push(status)
+  return status
+}
+
+function removeDownloadStatus(fileId){
+  for(var i =0; i < downloadStatus.length; i++){
+    if(downloadStatus[i].id == fileId){
+      downloadStatus.splice(i, 1)
+    }
+  }
 }
