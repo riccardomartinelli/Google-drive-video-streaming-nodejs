@@ -220,7 +220,6 @@ function performRequest_download_start(req, res, access_token, fileInfo){
   
     var videoDuration = null
     fileInfo.getVideoLength.then((data) => {
-      console.log(data)
       videoDuration = data
     })
     .catch((error) => {
@@ -242,7 +241,7 @@ function performRequest_download_start(req, res, access_token, fileInfo){
         status.speedMbit = speedInMBit.toFixed(3)
         status.speedByte = speedInByte
         if(videoDuration){
-          var timeLeftBeforeStreaming = Math.max(Math.round((downloadSize / speedInByte) - (videoDuration*downloadSize/fileSize)) , 0)
+          var timeLeftBeforeStreaming = Math.max(Math.round(((downloadSize-downloadedSize) / speedInByte) - (videoDuration*downloadSize/fileSize)) , 0)
           status.timeLeftBeforeStreaming = timeLeftBeforeStreaming
         }
         lastTime = nowTime
