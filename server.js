@@ -9,7 +9,7 @@ var app = express()
 var DEBUG = true;
 var TEMP_DIR = __dirname + '/.temp/'
 var CHUNK_SIZE = 20000000
-var PORT = 7777;
+var PORT = 9009;
 
 var consoleOut = (out) =>{if(DEBUG)console.log(out)}
 
