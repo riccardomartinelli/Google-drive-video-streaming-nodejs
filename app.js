@@ -243,6 +243,7 @@ function performRequest_download_start(req, res, access_token, fileInfo){
         if(videoDuration){
           var timeLeftBeforeStreaming = Math.max(Math.round(((downloadSize-downloadedSize) / speedInByte) - (videoDuration*downloadSize/fileSize)) , 0)
           status.timeLeftBeforeStreaming = timeLeftBeforeStreaming
+          status.timeLeftBeforeStreamingMin = Math.round(timeLeftBeforeStreaming / 60)
         }
         lastTime = nowTime
         chunkSizeSinceLast = 0
