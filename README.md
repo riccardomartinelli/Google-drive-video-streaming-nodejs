@@ -2,11 +2,11 @@
 This is a small script in nodejs that allow you to watch a video stored into your Google drive directly into your video player.
 
 ### Install
-You need only to install all the dependencies typing this command:
+You need to install all the dependencies typing this command:
 ```bash
 npm install
 ```
-
+and you need to install ffmpeg([link](https://www.ffmpeg.org/))
 
 ### Usage
 Just type this command to startup the script:
