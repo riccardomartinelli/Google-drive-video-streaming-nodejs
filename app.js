@@ -9,8 +9,6 @@ var app = express()
 var SCOPES = ['https://www.googleapis.com/auth/drive'];
 var TOKEN_DIR = __dirname + '/.credentials/';
 var TOKEN_PATH = TOKEN_DIR + 'googleDriveAPI.json';
-var TEMP_DIR = __dirname + '/.temp/'
-var CHUNK_SIZE = 20000000
 var PORT = 8998;
 
 // Load client secrets from a local file.
@@ -112,4 +110,30 @@ function startLocalServer(oauth2Client){
   })
   app.listen(PORT)
   console.log("GDrive started at port: " + PORT)
+}
+
+
+function listFiles(auth, folderId) {
+  var service = google.drive('v3');
+  service.files.list({
+    auth: auth,
+    pageSize: 1000,
+    q: "'" + folderId + "' in parents",
+    fields: "nextPageToken, files(id, name, parents)"
+  }, function(err, response) {
+    if (err) {
+      console.log('The API returned an error: ' + err);
+      return;
+    }
+    var files = response.files;
+    if (files.length == 0) {
+      console.log('No files found.');
+    } else {
+      console.log('Files:');
+      for (var i = 0; i < files.length; i++) {
+        var file = files[i];
+        console.log('%s (%s) (%s)', file.name, file.id, file.parents);
+      }
+    }
+  });
 }
