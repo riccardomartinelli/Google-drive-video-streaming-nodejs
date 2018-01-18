@@ -1,4 +1,5 @@
 
 .credentials/**
 .temp/**
+.info/**
 node_modules/**

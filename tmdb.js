@@ -1,19 +1,26 @@
 var https = require('https')
 const { URL, URLSearchParams } = require('url')
 
-var url_tmdb = 'https://api.themoviedb.org/3/search/movie?'
+var url_tmdb_movie_search = 'https://api.themoviedb.org/3/search/movie?'
+var url_tmdb_tvshow_search = 'https://api.themoviedb.org/3/search/tv?'
+var url_img_tmdb = 'https://image.tmdb.org/t/p/w500'
 var API_KEY = 'cbc07b147fe94d8f4048efeb77a22b2d'
 var language = 'it-IT'
 
-function movieSearch(movieList){
-    movieSearch_rec(movieList, 0)
+function getTvShowInfo(tvShowList, callback){
+    search_rec(url_tmdb_tvshow_search, tvShowList, 0, callback)
 }
 
-function movieSearch_rec(movieList, i){
-    var url = new URL(url_tmdb);
+function getMovieInfo(movieList, callback){
+    search_rec(url_tmdb_movie_search, movieList, 0, callback)
+}
+
+function search_rec(searchUrl, videoList, i, callback){
+    console.log("%s of %s", i+1, videoList.length)
+    var url = new URL(searchUrl);
     url.searchParams.set('api_key', API_KEY)
     url.searchParams.set('language', language)
-    url.searchParams.set('query', movieList[i].name)
+    url.searchParams.set('query', videoList[i].name)
 
     const req = https.request(url, (res) => {
         var body = ''
@@ -24,12 +31,13 @@ function movieSearch_rec(movieList, i){
             var bodyParsed = JSON.parse(body)
             if(bodyParsed.results[0]){
                 var info = bodyParsed.results[0]
-                movieList[i].info = info
-                console.log(info)
+                videoList[i].info = info
             }     
             i++       
-            if(i < movieList.length){                
-                movieSearch_rec(movieList, i)
+            if(i < videoList.length){                
+                search_rec(searchUrl, videoList, i, callback)
+            }else{
+                callback(videoList)
             }   
         })   
         res.on('error', (error) =>{
@@ -39,4 +47,4 @@ function movieSearch_rec(movieList, i){
     req.end()
 }
 
-movieSearch([{name: '2001 odissea'}, {name: 'guida galattica'}])
+module.exports = {getMovieInfo: getMovieInfo, getTvShowInfo: getTvShowInfo}

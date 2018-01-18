@@ -83,6 +83,8 @@ function performRequest_default(req, res, access_token, fileInfo){
             richiesta.abort()
           if(typeof richiesta.destroy === "function")
             richiesta.destroy()
+          if(typeof richiesta === "function")
+            richiesta()
         })
       }
     )
@@ -101,6 +103,8 @@ function performRequest_default(req, res, access_token, fileInfo){
             richiesta.abort()
           if(typeof richiesta.destroy === "function")
             richiesta.destroy()
+          if(typeof richiesta === "function")
+            richiesta()
         })
       }
     )
@@ -135,13 +139,13 @@ function performRequest_download_start(req, res, access_token, fileInfo){
     var chunkSizeSinceLast = 0
     echoStream._write = function (chunk, encoding, done) {    
       chunkSizeSinceLast += chunk.length
+      downloadedSize += chunk.length
       var nowTime = (new Date).getTime()        
       
       //update status    
-      if(nowTime - lastTime > 2000){
+      if(nowTime - lastTime > 3000){
         var speedInMBit = ((chunkSizeSinceLast*8 / (nowTime - lastTime)) / 1000)
         var speedInByte = (speedInMBit/8) * 1000000
-        downloadedSize += chunkSizeSinceLast
         status.status = (downloadedSize/downloadSize * 100).toFixed(3)
         status.downloadedByte = downloadedSize
         status.speedMbit = speedInMBit.toFixed(3)
@@ -157,7 +161,7 @@ function performRequest_download_start(req, res, access_token, fileInfo){
       
       done();
     }
-    var fromByte =startChunk*CHUNK_SIZE
+    var fromByte = startChunk*CHUNK_SIZE
     var toByte = fileSize-1
     //from byte - to byte
     status.fromByte = fromByte
@@ -195,7 +199,8 @@ function performRequest_download_stop(req, res, access_token, fileInfo){
 
 function downloadFile(fileId, access_token, start, end, pipe, onEnd, onStart){
   var startChunk = Math.floor(start / CHUNK_SIZE)
-  var chunkName = TEMP_DIR + fileId + '@' + startChunk
+  var chunkName_short = fileId + '@' + startChunk
+  var chunkName = TEMP_DIR + chunkName_short
   if(fs.existsSync(chunkName)){
     consoleOut('req: ' + start + ' / ' + end + '   offline')
     var relativeStart = (start > startChunk*CHUNK_SIZE) ? start - (startChunk*CHUNK_SIZE) : 0
@@ -220,8 +225,27 @@ function downloadFile(fileId, access_token, start, end, pipe, onEnd, onStart){
     })
     onStart(readStream)
   }else{
-    consoleOut('req: ' + start + ' / ' + end + '   online')
-    httpDownloadFile(fileId, access_token, start, end, pipe, onEnd, onStart)
+    var downloadStatus = getDownloadStatus(fileId)
+    var connectionClosed = false
+    onStart(() => {connectionClosed = true})
+    if(downloadStatus
+      && !connectionClosed
+      && ((Math.floor((downloadStatus.fromByte + downloadStatus.downloadedByte)/CHUNK_SIZE) == startChunk
+          || (Math.floor((downloadStatus.fromByte + downloadStatus.downloadedByte)/CHUNK_SIZE) == startChunk+1)))){
+      consoleOut('req: ' + start + ' / ' + end + '   wait')
+      fs.watch(TEMP_DIR, {persistent:false}, (event, who) => {
+        if (event == 'rename' && who == chunkName_short) {
+          if (fs.existsSync(chunkName)) {
+            if(!connectionClosed){
+              downloadFile(fileId, access_token, start, end, pipe, onEnd, onStart)
+            }            
+          }
+        }
+      })    
+    }else{
+      consoleOut('req: ' + start + ' / ' + end + '   online')
+      httpDownloadFile(fileId, access_token, start, end, pipe, onEnd, onStart)
+    }
   }
 }
 

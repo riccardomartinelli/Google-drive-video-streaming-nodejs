@@ -1,9 +1,15 @@
 var fs = require('fs');
 var google = require('googleapis');
 var googleAuth = require('google-auth-library');
+var cors = require('cors')
 var express = require('express')
 var server = require('./server')
+var tmdb = require("./tmdb")
 var app = express()
+
+app.use(cors()) //ALLOW-CORS request
+
+var INFO_DIR = __dirname + '/.info/'
 
 // If modifying these scopes, delete your previously saved credentials
 var SCOPES = ['https://www.googleapis.com/auth/drive'];
@@ -83,6 +89,29 @@ function storeToken(token) {
   });
 }
 
+function storeJsonVideoInfo(fileName, videoInfo) {
+  fileName = INFO_DIR + fileName
+  try {
+    fs.mkdirSync(INFO_DIR);
+  } catch (err) {
+    if (err.code != 'EEXIST') {
+      throw err;
+    }
+  }
+  fs.writeFile(fileName, JSON.stringify(videoInfo), err => {
+    if(err) throw err
+  });
+}
+
+function getJsonVideoInfo(fileName) {
+  fileName = INFO_DIR + fileName
+  try{
+    return JSON.parse(fs.readFileSync(fileName))
+  }catch(err){
+    return null
+  }
+}
+
 function startLocalServer(oauth2Client){
   app.get(/\/code/, function (req, res){
     if(req.query.code){
@@ -102,6 +131,52 @@ function startLocalServer(oauth2Client){
    }
   })
 
+  app.get(/\/movie/, function (req, res){
+    var urlSplitted = req.url.match('^[^?]*')[0].split('/')
+    var folderId = 0
+    if(urlSplitted[2])
+      folderId = urlSplitted[2]
+    var needUpdate = false
+    var videoInfo = getJsonVideoInfo(folderId)
+    if(!videoInfo)
+      needUpdate = true
+    if((req.query.update && req.query.update == "true") || needUpdate){
+      folderContent(oauth2Client, folderId, (obj) => {        
+        tmdb.getMovieInfo(obj, (obj) =>{
+          storeJsonVideoInfo(folderId, obj)
+          res.write(JSON.stringify(obj))
+          res.end()
+        })
+      })
+    }else{
+      res.write(JSON.stringify(videoInfo))
+      res.end()
+    }
+  })
+  
+  app.get(/\/tvshow/, function (req, res){
+    var urlSplitted = req.url.match('^[^?]*')[0].split('/')
+    var folderId = 0
+    if(urlSplitted[2])
+      folderId = urlSplitted[2]
+    var needUpdate = false
+    var videoInfo = getJsonVideoInfo(folderId)
+    if(!videoInfo)
+      needUpdate = true
+    if((req.query.update && req.query.update == "true") || needUpdate){
+      folderContent(oauth2Client, folderId, (obj) => {        
+        tmdb.getTvShowInfo(obj, (obj) =>{
+          storeJsonVideoInfo(folderId, obj)
+          res.write(JSON.stringify(obj))
+          res.end()
+        })
+      })
+    }else{
+      res.write(JSON.stringify(videoInfo))
+      res.end()
+    }
+  })
+
   server.start(callback => {
     refreshTokenIfNeed(oauth2Client, oauth2Client => {
       var access_token = oauth2Client.credentials.access_token  
@@ -113,7 +188,7 @@ function startLocalServer(oauth2Client){
 }
 
 
-function listFiles(auth, folderId) {
+function folderContent(auth, folderId, callback) {
   var service = google.drive('v3');
   service.files.list({
     auth: auth,
@@ -125,15 +200,18 @@ function listFiles(auth, folderId) {
       console.log('The API returned an error: ' + err);
       return;
     }
-    var files = response.files;
-    if (files.length == 0) {
-      console.log('No files found.');
-    } else {
-      console.log('Files:');
-      for (var i = 0; i < files.length; i++) {
-        var file = files[i];
-        console.log('%s (%s) (%s)', file.name, file.id, file.parents);
-      }
-    }
+    var files = response.files    
+    for(var i=0; i < files.length; i++){
+      files[i].fileName = files[i].name
+      files[i].name = movieNameFormatter(files[i].name)
+    }    
+    callback(files)
   });
+}
+
+function movieNameFormatter(value){
+  value = value.replace(/\(.*\)/, "")
+  value = value.replace(/\..*/, "")
+  value = value.replace(/-/, " ")
+  return value
 }
