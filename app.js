@@ -193,8 +193,8 @@ function folderContent(auth, folderId, callback) {
   service.files.list({
     auth: auth,
     pageSize: 1000,
-    q: "'" + folderId + "' in parents",
-    fields: "nextPageToken, files(id, name, parents)"
+    q: "'" + folderId + "' in parents"
+    //fields: "nextPageToken, files(id, name, parents, mimeType)"
   }, function(err, response) {
     if (err) {
       console.log('The API returned an error: ' + err);
