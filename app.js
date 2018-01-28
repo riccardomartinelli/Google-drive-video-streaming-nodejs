@@ -141,12 +141,18 @@ function startLocalServer(oauth2Client){
     if(!videoInfo)
       needUpdate = true
     if((req.query.update && req.query.update == "true") || needUpdate){
-      folderContent(oauth2Client, folderId, (obj) => {        
-        tmdb.getMovieInfo(obj, (obj) =>{
+      folderContent(oauth2Client, folderId, (obj) => { 
+        if(req.query.noinfo != "true"){
+          tmdb.getMovieInfo(obj, (obj) =>{
+            storeJsonVideoInfo(folderId, obj)
+            res.write(JSON.stringify(obj))
+            res.end()
+          })
+        }else{
           storeJsonVideoInfo(folderId, obj)
           res.write(JSON.stringify(obj))
           res.end()
-        })
+        }   
       })
     }else{
       res.write(JSON.stringify(videoInfo))
@@ -164,12 +170,18 @@ function startLocalServer(oauth2Client){
     if(!videoInfo)
       needUpdate = true
     if((req.query.update && req.query.update == "true") || needUpdate){
-      folderContent(oauth2Client, folderId, (obj) => {        
-        tmdb.getTvShowInfo(obj, (obj) =>{
+      folderContent(oauth2Client, folderId, (obj) => {   
+        if(req.query.noinfo != "true"){
+          tmdb.getTvShowInfo(obj, (obj) =>{
+            storeJsonVideoInfo(folderId, obj)
+            res.write(JSON.stringify(obj))
+            res.end()
+          })
+        }else{
           storeJsonVideoInfo(folderId, obj)
           res.write(JSON.stringify(obj))
           res.end()
-        })
+        } 
       })
     }else{
       res.write(JSON.stringify(videoInfo))
@@ -202,9 +214,15 @@ function folderContent(auth, folderId, callback) {
     }
     var files = response.files    
     for(var i=0; i < files.length; i++){
-      files[i].fileName = files[i].name
-      files[i].query = tmdb.movieNameFormatter(files[i].name)
-      files[i].year = tmdb.movieNameGetYear(files[i].name)
+      files[i].query = tmdb.titleFormatter(files[i].name)
+      var year = tmdb.titleGetYear(files[i].name)
+      if(year)
+        files[i].year = year
+      var epSe = tmdb.titleGetEpisodeSeason(files[i].name)
+      if(epSe){
+        files[i].season = epSe.season
+        files[i].episode = epSe.episode        
+      }
     }    
     callback(files)
   });

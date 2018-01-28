@@ -18,12 +18,15 @@ function getMovieInfo(movieList, callback){
 function search_rec(searchUrl, videoList, i, callback){
     console.log("%s of %s", i+1, videoList.length)
     var url = new URL(searchUrl);
+    var header = {
+       Connection: "keep-alive"
+    }
     url.searchParams.set('api_key', API_KEY)
     url.searchParams.set('language', language)
     url.searchParams.set('query', videoList[i].query)
     if(videoList[i].year)
         url.searchParams.set('year', videoList[i].year)
-    const req = https.request(url, (res) => {
+    const req = https.request({hostname: url.hostname, path: url.pathname + url.search, headers: header}, (res) => {
         var body = ''
         res.on('data', function (chunk) {
             body += chunk
@@ -48,7 +51,7 @@ function search_rec(searchUrl, videoList, i, callback){
     req.end()
 }
 
-function movieNameFormatter(value){
+function titleFormatter(value){
     value = value.replace(/\..*/, "")
     value = value.replace(/\(.+\)/, "")
     
@@ -56,14 +59,43 @@ function movieNameFormatter(value){
     return value
 }
 
-function movieNameGetYear(value){
-    var yearMatch = value.match(/\(.+\)/)
+function titleGetYear(value){
+    var yearMatch = value.match(/\((.+)\)/)
     var year = null
     if(yearMatch){
-      value = value.replace(/\(.+\)/, "")
-      year = (yearMatch[0]).substring(1, yearMatch[0].length-1)
+      year = yearMatch[1]
     }
     return year
 }
 
-module.exports = {getMovieInfo: getMovieInfo, getTvShowInfo: getTvShowInfo, movieNameFormatter: movieNameFormatter, movieNameGetYear: movieNameGetYear}
+function titleGetEpisodeSeason(value){
+    var seEp = value.match(/[Ss]([0-9]+)[Ee]([0-9]+)/)
+    if(seEp){
+        var ep = parseInt(seEp[2])
+        var se = parseInt(seEp[1])
+        return {episode: ep, season: se}
+    }
+
+    var epSe = value.match(/[Ee]([0-9]+)[Se]([0-9]+)/)
+    if(epSe){
+        var ep = parseInt(epSe[1])
+        var se = parseInt(epSe[2])
+        return {episode: ep, season: se}
+    }
+
+    var seXep = value.match(/([0-9]+)[Xx]([0-9]+)/)
+    if(seXep){
+        var ep = parseInt(seXep[2])
+        var se = parseInt(seXep[1])
+        return {episode: ep, season: se}
+    }
+
+    return null
+}
+
+module.exports = {
+    getMovieInfo: getMovieInfo,
+    getTvShowInfo: getTvShowInfo, 
+    titleFormatter: titleFormatter, 
+    titleGetYear: titleGetYear, 
+    titleGetEpisodeSeason: titleGetEpisodeSeason}
