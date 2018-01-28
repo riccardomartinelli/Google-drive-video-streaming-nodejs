@@ -20,8 +20,9 @@ function search_rec(searchUrl, videoList, i, callback){
     var url = new URL(searchUrl);
     url.searchParams.set('api_key', API_KEY)
     url.searchParams.set('language', language)
-    url.searchParams.set('query', videoList[i].name)
-
+    url.searchParams.set('query', videoList[i].query)
+    if(videoList[i].year)
+        url.searchParams.set('year', videoList[i].year)
     const req = https.request(url, (res) => {
         var body = ''
         res.on('data', function (chunk) {
@@ -47,4 +48,22 @@ function search_rec(searchUrl, videoList, i, callback){
     req.end()
 }
 
-module.exports = {getMovieInfo: getMovieInfo, getTvShowInfo: getTvShowInfo}
+function movieNameFormatter(value){
+    value = value.replace(/\..*/, "")
+    value = value.replace(/\(.+\)/, "")
+    
+    value = value.replace(/-/, " ")
+    return value
+}
+
+function movieNameGetYear(value){
+    var yearMatch = value.match(/\(.+\)/)
+    var year = null
+    if(yearMatch){
+      value = value.replace(/\(.+\)/, "")
+      year = (yearMatch[0]).substring(1, yearMatch[0].length-1)
+    }
+    return year
+}
+
+module.exports = {getMovieInfo: getMovieInfo, getTvShowInfo: getTvShowInfo, movieNameFormatter: movieNameFormatter, movieNameGetYear: movieNameGetYear}

@@ -203,15 +203,10 @@ function folderContent(auth, folderId, callback) {
     var files = response.files    
     for(var i=0; i < files.length; i++){
       files[i].fileName = files[i].name
-      files[i].name = movieNameFormatter(files[i].name)
+      files[i].query = tmdb.movieNameFormatter(files[i].name)
+      files[i].year = tmdb.movieNameGetYear(files[i].name)
     }    
     callback(files)
   });
 }
 
-function movieNameFormatter(value){
-  value = value.replace(/\(.*\)/, "")
-  value = value.replace(/\..*/, "")
-  value = value.replace(/-/, " ")
-  return value
-}
