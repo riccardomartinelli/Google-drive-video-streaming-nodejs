@@ -69,6 +69,42 @@ function titleGetYear(value){
 }
 
 function titleGetEpisodeSeason(value){
+
+    var regEx = value.match(/(.+)(([Ss]([0-9]+)[Ee]([0-9]+))|([Ee]([0-9]+)[Se]([0-9]+))|(([0-9]+)[Xx]([0-9]+)))(.*)/)
+    if(regEx){
+        var result = {}
+        if(regEx[1]){
+            var title = regEx[1]
+            title = title.replace(/-/, ' ')
+            title = title.replace(/\./, ' ')
+            result.title = title
+        }
+        if(regEx[2]){
+            if(regEx[3]){
+                var ep = parseInt(regEx[5])
+                var se = parseInt(regEx[4])
+                result.episode = ep
+                result.season = se
+            }
+            if(regEx[6]){
+                var ep = parseInt(regEx[7])
+                var se = parseInt(regEx[8])
+                result.episode = ep
+                result.season = se
+            }
+            if(regEx[9]){
+                var ep = parseInt(regEx[11])
+                var se = parseInt(regEx[10])
+                result.episode = ep
+                result.season = se
+            }
+        }
+        return result
+    }
+
+    return null
+
+    /*
     var seEp = value.match(/[Ss]([0-9]+)[Ee]([0-9]+)/)
     if(seEp){
         var ep = parseInt(seEp[2])
@@ -88,10 +124,9 @@ function titleGetEpisodeSeason(value){
         var ep = parseInt(seXep[2])
         var se = parseInt(seXep[1])
         return {episode: ep, season: se}
-    }
-
-    return null
+    } */
 }
+
 
 module.exports = {
     getMovieInfo: getMovieInfo,

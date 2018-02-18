@@ -413,4 +413,4 @@ function removeDownloadStatus(fileId){
   }
 }
 
-module.exports = {start}
+module.exports = {start, PORT}

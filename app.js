@@ -5,6 +5,7 @@ var cors = require('cors')
 var express = require('express')
 var server = require('./server')
 var tmdb = require("./tmdb")
+var player = require('./player');
 var app = express()
 
 app.use(cors()) //ALLOW-CORS request
@@ -71,7 +72,8 @@ function refreshToken(oauth2Client, callback) {
       return;
     }
     oauth2Client.credentials = token;
-    storeToken(token);
+    if(token)
+      storeToken(token);
     callback(oauth2Client)
   })
 }
@@ -189,6 +191,20 @@ function startLocalServer(oauth2Client){
     }
   })
 
+  app.get(/\/player\/open/, function (req, res){
+    var fileId = req.query.id
+    var url = 'http:127.0.0.1:' + server.PORT + '/' + fileId
+    console.log('Opening player')
+    player.open(url)
+    res.end()
+  })
+
+  app.get(/\/player\/close/, function (req, res){
+    console.log('Closing player')
+    player.close()
+    res.end()
+  })
+
   server.start(callback => {
     refreshTokenIfNeed(oauth2Client, oauth2Client => {
       var access_token = oauth2Client.credentials.access_token  
@@ -220,6 +236,7 @@ function folderContent(auth, folderId, callback) {
         files[i].year = year
       var epSe = tmdb.titleGetEpisodeSeason(files[i].name)
       if(epSe){
+        files[i].query = epSe.title
         files[i].season = epSe.season
         files[i].episode = epSe.episode        
       }
