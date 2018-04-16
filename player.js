@@ -1,6 +1,6 @@
 var cmd=require('node-cmd');
 
-var PORT = 7007
+var PORT = 9003
 
 function open(fileName){
     cmd.run('mpc-hc64.exe ' + fileName + ' /play /fullscreen /webport ' + PORT)
