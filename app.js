@@ -16,7 +16,7 @@ var INFO_DIR = __dirname + '/.info/'
 var SCOPES = ['https://www.googleapis.com/auth/drive'];
 var TOKEN_DIR = __dirname + '/.credentials/';
 var TOKEN_PATH = TOKEN_DIR + 'googleDriveAPI.json';
-var PORT = 9001;
+var PORT = 9001; // remember to change even redirect_uris!!
 
 // Load client secrets from a local file.
 fs.readFile('client_secret.json', function processClientSecrets(err, content) {
