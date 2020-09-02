@@ -22,6 +22,6 @@
     "express-end": "0.0.8",
     "get-video-duration": "^0.2.0",
     "google-auth-library": "^0.12.0",
-    "googleapis": "^23.0.0"
+    "googleapis": "^39.1.0"
   }
 }
